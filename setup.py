@@ -10,10 +10,10 @@ with open(path.join(here, 'README.rst')) as f:
 
 setup(
     name="minimalcluster",
-    version="0.1.0.dev1",
+    version="0.1.0.dev2",
     description='A minimal cluster computing framework',
     long_description=long_description,
-    url='https://github.com/xd-deng/???',
+    url='https://github.com/XD-DENG/minimalcluster-py',
     author='Xiaodong DENG',
     author_email='xd.deng.r@gmail.com',
     license='MIT',
