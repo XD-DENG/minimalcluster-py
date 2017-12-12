@@ -77,7 +77,7 @@ class WorkerNode():
         if nprocs > N_local_cores:
             print("[WARNING] nprocs specified is more than the # of cores of this node. Using the # of cores ({}) instead.".format(N_local_cores))
             self.nprocs = N_local_cores
-        if nprocs < 1:
+        elif nprocs < 1:
             print("[WARNING] nprocs specified is not valid. Using the # of cores ({}) instead.".format(N_local_cores))
             self.nprocs = N_local_cores
         else:            
