@@ -1,8 +1,13 @@
 # ***minimalcluster*** - A Minimal Cluster Computing Framework with Python
 
+<img src="https://img.shields.io/pypi/v/minimalcluster.svg" alt="status" /> <img src="https://img.shields.io/github/license/mashape/apistatus.svg" alt="status" />
+
 "***minimal***" here means minimal dependency or platform requirements, as well as its nature of "minimum viable product". It's mainly for tackling straightforward "embarrassingly parallel" tasks using multiple commodity machines, also a good choice for *experimental and learning purposes*. The idea came from [Eli Bendersky's blog](https://eli.thegreenplace.net/2012/01/24/distributed-computing-in-python-with-multiprocessing).
 
-***minimalcluster*** is built only using plain Python and its standard libraries (mainly `multiprocessing`). This brought a few advantages: no additional installation or configuration is needed; 100% cross-platform (you can even have Linux, MacOS, and Windows nodes within a single cluster).
+***minimalcluster*** is built only using plain Python and its standard libraries (mainly `multiprocessing`). This brought a few advantages, including
+
+- no additional installation or configuration is needed
+- 100% cross-platform (you can even have Linux, MacOS, and Windows nodes within a single cluster).
 
 This package can be used with Python 2.7+ or 3.6+. But within a cluster, you can only choose a single version of Python, either 2 or 3.
 
@@ -42,7 +47,7 @@ master.start_master_server()
 
 On all your **Worker Nodes**, run the command below in your Python terminal
 
-```
+```python
 from minimalcluster import WorkerNode
 
 your_host = '<your master node hostname or IP>'
@@ -123,7 +128,7 @@ def example_factorize_naive(n):
             p += 2
         else:
             p += 1
-    assert False, "unreachabl
+    assert False, "unreachable"
 '''
 
 #Create N large numbers to factorize.

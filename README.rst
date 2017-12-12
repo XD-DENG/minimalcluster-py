@@ -5,7 +5,11 @@
 "**minimal**" here means minimal dependency or platform requirements, as well as its nature of "minimum viable product". It's mainly for tackling straightforward "embarrassingly parallel" tasks using multiple commodity machines, also a good choice for experimental and learning purposes. The idea came from `Eli Bendersky's blog <https://eli.thegreenplace.net/2012/01/24/distributed-computing-in-python-with-multiprocessing>`_
 .
 
-minimalcluster is built only using plain Python and its standard libraries (mainly multiprocessing). This brought a few advantages: no additional installation or configuration is needed; 100% cross-platform (you can even have Linux, MacOS, and Windows nodes within a single cluster).
+**minimalcluster** is built only using plain Python and its standard libraries (mainly *multiprocessing*). This brings a few advantages, including
+
+- no additional installation or configuration is needed
+
+- 100% cross-platform (you can even have Linux, MacOS, and Windows nodes within a single cluster).
 
 This package can be used with Python 2.7+ or 3.6+. But within a cluster, you can only choose a single version of Python, either 2 or 3.
 
@@ -20,7 +24,9 @@ Usage & Examples
 Step 1 - Install this package
 =============================
 
-`pip install minimalcluster`
+.. code-block:: bash
+
+   pip install minimalcluster
 
 Step 2 - Start master node
 =============================
@@ -129,7 +135,7 @@ Example 2 - Factorization
                 p += 2
             else:
                 p += 1
-        assert False, "unreachabl
+        assert False, "unreachable"
     '''
 
     #Create N large numbers to factorize.
