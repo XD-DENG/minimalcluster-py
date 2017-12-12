@@ -5,6 +5,8 @@ import datetime
 from functools import partial
 from types import FunctionType
 import sys
+import random
+import string
 if sys.version_info.major == 3:
     from queue import Queue as _Queue
 else:
@@ -57,12 +59,13 @@ class MasterNode():
         HOST: the hostname or IP address to use
         PORT: the port to use
         AUTHKEY: The process's authentication key (a byte string).
+                 If None is given, a random string will be given
         chunksize: The numbers are split into chunks. Each chunk is pushed into the job queue.
                    Here the size of each chunk if specified.
         '''
         self.HOST = HOST
         self.PORT = PORT
-        self.AUTHKEY = AUTHKEY.encode()
+        self.AUTHKEY = AUTHKEY.encode() if AUTHKEY != None else ''.join(random.choice(string.ascii_uppercase) for _ in range(6)).encode()
         self.chunksize = chunksize
         self.functions_to_share_to_workers = []
         self.server_status = 'Not started'

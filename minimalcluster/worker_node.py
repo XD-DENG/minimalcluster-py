@@ -56,6 +56,20 @@ def mp_apply(envir, fun, shared_job_q, shared_result_q, shared_error_q, nprocs):
 class WorkerNode():
 
     def __init__(self, IP, PORT, AUTHKEY, nprocs):
+        '''
+        Method to initiate a master node object.
+
+        IP: the hostname or IP address of the Master Node
+        PORT: the port to use (decided by Master NOde)
+        AUTHKEY: The process's authentication key (a byte string).
+                  It can't be None.
+        nprocs: Integer. The number of processors on the Worker Node to be available to the Master Node.
+                It should be less or equal to the number of processors on the Worker Node. If higher than that, the # of available processors will be used instead.
+        '''
+
+        assert AUTHKEY != None, "AUTHKEY can't be None"
+        assert type(nprocs) == int, "'nprocs' must be an integer."
+
         self.IP = IP
         self.PORT = PORT
         self.AUTHKEY = AUTHKEY.encode()
@@ -63,16 +77,17 @@ class WorkerNode():
         if nprocs > N_local_cores:
             print("[WARNING] nprocs specified is more than the # of cores of this node. Using the # of cores ({}) instead.".format(N_local_cores))
             self.nprocs = N_local_cores
+        if nprocs < 1:
+            print("[WARNING] nprocs specified is not valid. Using the # of cores ({}) instead.".format(N_local_cores))
+            self.nprocs = N_local_cores
         else:            
             self.nprocs = nprocs
         self.connected = False
         self.worker_hostname = getfqdn()
 
     def connect(self):
-        """ Create a manager for the client. This manager connects to a server on the
-        given address and exposes the get_job_q and get_result_q methods for
-        accessing the shared queues from the server.
-        Will create a manager object.
+        """
+        Connect to Master Node after the Worker Node is initialized.
         """
         class ServerQueueManager(SyncManager):
             pass
@@ -101,6 +116,9 @@ class WorkerNode():
             print("No connection could be made. Please check the network or your configuration.")
 
     def join_cluster(self):
+        """
+        This method will connect the worker node with the master node, and start to listen to the master node for any job assignment.
+        """
 
         self.connect()
 
