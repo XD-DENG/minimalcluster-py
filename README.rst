@@ -18,6 +18,15 @@ For more frameworks for parallel or cluster computing, you may also want to refe
 
 
 ******************
+Benchmarking
+******************
+
+.. image:: https://raw.githubusercontent.com/XD-DENG/minimalcluster-py/master/benchmarking/benchmarking.png
+
+
+`Details <https://github.com/XD-DENG/minimalcluster-py/blob/master/benchmarking/README.md>`_
+
+******************
 Usage & Examples
 ******************
 
