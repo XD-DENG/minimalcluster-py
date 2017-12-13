@@ -24,10 +24,10 @@ For more frameworks for parallel or cluster computing, you may also want to refe
 ## Benchmarking
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/XD-DENG/minimalcluster-py/master/benchmarking/benchmarking.png" alt="Drawing" style="width:80%;"/>
+<img src="https://raw.githubusercontent.com/XD-DENG/minimalcluster-py/master/benchmarking/benchmarking.png" alt="Drawing" style="width:60%;"/>
 </p>
 
-Please check for details [here](https://github.com/XD-DENG/minimalcluster-py/blob/master/benchmarking/README.md)
+([Details](https://github.com/XD-DENG/minimalcluster-py/blob/master/benchmarking/README.md))
 
 
 ## Usage & Examples
