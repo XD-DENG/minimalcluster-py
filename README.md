@@ -14,9 +14,20 @@ This package can be used with Python 2.7+ or 3.6+. But within a cluster, you can
 For more frameworks for parallel or cluster computing, you may also want to refer to [Parallel Processing and Multiprocessing in Python](https://wiki.python.org/moin/ParallelProcessing).
 
 
-### Contents
-- [Usage & Examples](#usage-examples)
+#### Contents
 
+- [Benchmarking](#benchmarking)
+
+- [Usage & Examples](#usage--examples)
+
+
+## Benchmarking
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/XD-DENG/minimalcluster-py/master/benchmarking/benchmarking.png" alt="Drawing" style="width:80%;"/>
+</p>
+
+Please check for details [here](https://github.com/XD-DENG/minimalcluster-py/blob/master/benchmarking/README.md)
 
 
 ## Usage & Examples
