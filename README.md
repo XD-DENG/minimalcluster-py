@@ -53,6 +53,7 @@ master = MasterNode(HOST = your_host, PORT = your_port, AUTHKEY = your_authkey)
 master.start_master_server()
 ```
 
+Please note the master node will join the cluster as worker node as well by default. If you prefer otherwise, you can have argument `if_join_as_worker` in `start_master_server()` to be `False`. In addition, you can also remove it from the cluster by invoking `master.stop_as_worker()` and join as worker node again by invoking `master.join_as_worker()`.
 
 #### Step 3 - Start worker nodes
 

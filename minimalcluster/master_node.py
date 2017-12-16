@@ -78,13 +78,28 @@ class MasterNode():
         self.as_worker = False
         self.target_fun = None
 
+
+    def join_as_worker(self):
+        '''
+        This method helps start the master node as a worker node as well
+        '''
+        if self.as_worker:
+            print("[WARNING] This node has already joined the cluster as a worker node.")
+        else:
+            self.process_as_worker = Process(target = start_worker_in_background, args=(self.HOST, self.PORT, self.AUTHKEY, cpu_count(), True, ))
+            self.process_as_worker.start()
+            # waiting for the master node joining the cluster as a worker
+            while len(self.list_workers()) == 0:
+                pass
+            self.as_worker = True
+            print("[INFO] Current node has joined the cluster as a Worker Node (using {} processors; Process ID: {}).".format(cpu_count(), self.process_as_worker.pid))
         
-    def start_master_server(self, join_as_worker = True):
+    def start_master_server(self, if_join_as_worker = True):
         """
         Method to create a manager as the master node.
         
         Arguments:
-        join_as_worker: Boolen.
+        if_join_as_worker: Boolen.
                         If True, the master node will also join the cluster as worker node. It will automatically run in background.
                         If False, users need to explicitly configure if they want the master node to work as worker node too.
                         The default value is True.                             
@@ -121,16 +136,10 @@ class MasterNode():
         self.share_target_fun = self.manager.target_function()
         self.queue_of_worker_list = self.manager.queue_of_worker_list()
         
-        if join_as_worker:
-            self.process_as_worker = Process(target = start_worker_in_background, args=(self.HOST, self.PORT, self.AUTHKEY, cpu_count(), True, ))
-            self.process_as_worker.start()
-            # waiting for the master node joining the cluster as a worker
-            while len(self.list_workers()) == 0:
-                pass
-            self.as_worker = True
-            print("[INFO] Current node has joined the cluster as a Worker Node (using {} processors; Process ID: {}).".format(cpu_count(), self.process_as_worker.pid))
+        if if_join_as_worker:
+            self.join_as_worker()
 
-    def stop_local_worker(self):
+    def stop_as_worker(self):
         '''
         Given the master node can also join the cluster as a worker, we also need to have a method to stop it as a worker node (which may be necessary in some cases).
         This method serves this purpose
@@ -255,11 +264,11 @@ class MasterNode():
 
     def shutdown(self):
         if self.as_worker:
-            self.stop_local_worker()
+            self.stop_as_worker()
 
         if self.server_status == 'on':
             self.manager.shutdown()
             self.server_status = "off"
-            print("[INFO] The master node is stopped.")
+            print("[INFO] The master node is shut down.")
         else:
-            print("[WARNING] The master node is not started yet or already shutted off.")
+            print("[WARNING] The master node is not started yet or already shut down.")
