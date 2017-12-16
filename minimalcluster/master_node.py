@@ -1,4 +1,5 @@
 from multiprocessing.managers import SyncManager
+from multiprocessing import Process, cpu_count
 import time
 import inspect
 import datetime
@@ -49,6 +50,11 @@ def clear_queue(q):
         q.get()
 
 
+def start_worker_in_background(HOST, PORT, AUTHKEY, nprocs, quiet):
+    from minimalcluster import WorkerNode
+    worker = WorkerNode(HOST, PORT, AUTHKEY, nprocs, quiet)
+    worker.join_cluster()
+
 
 class MasterNode():
 
@@ -71,12 +77,16 @@ class MasterNode():
         self.server_status = 'Not started'
         self.target_fun = None
 
-
-    def start_master_server(self):
+        
+    def start_master_server(self, join_as_worker = True):
         """
         Method to create a manager as the master node.
-
-        Methods will also be created in order to pass target function and args to worker nodes later.
+        
+        Arguments:
+        join_as_worker: Boolen.
+                        If True, the master node will also join the cluster as worker node. It will automatically run in background.
+                        If False, users need to explicitly configure if they want the master node to work as worker node too.
+                        The default value is True.                             
         """
         self.job_q = Queue()
         self.result_q = Queue()
@@ -101,7 +111,7 @@ class MasterNode():
         self.manager = JobQueueManager(address=(self.HOST, self.PORT), authkey=self.AUTHKEY)
         self.manager.start()
         self.server_status = 'Started'
-        print('[{}] Server started at port {} with authkey `{}`.'.format(str(datetime.datetime.now()), self.PORT, self.AUTHKEY.decode()))
+        print('[{}] Master Node started at port {} with authkey `{}`.'.format(str(datetime.datetime.now()), self.PORT, self.AUTHKEY.decode()))
 
         self.shared_job_q = self.manager.get_job_q()
         self.shared_result_q = self.manager.get_result_q()
@@ -109,7 +119,22 @@ class MasterNode():
         self.share_envir = self.manager.get_envir()
         self.share_target_fun = self.manager.target_function()
         self.queue_of_worker_list = self.manager.queue_of_worker_list()
+        
+        if join_as_worker:
+            self.process_as_worker = Process(target = start_worker_in_background, args=(self.HOST, self.PORT, self.AUTHKEY, cpu_count(), True, ))
+            self.process_as_worker.start()
+            # waiting for the master node joining the cluster as a worker
+            while len(self.list_workers()) == 0:
+                pass
+            print("[INFO] Current node has joined the cluster as a Worker Node (using {} processors; Process ID: {}).".format(cpu_count(), self.process_as_worker.pid))
 
+    def stop_local_worker(self):
+        '''
+        Given the master node can also join the cluster as a worker, we also need to have a method to stop it as a worker node (which may be necessary in some cases).
+        This method serves this purpose
+        '''
+        self.process_as_worker.terminate()
+        print("[INFO] The master node has stopped working as a worker node.")
 
     def list_workers(self):
         '''
@@ -149,12 +174,12 @@ class MasterNode():
         self.args_to_share_to_workers = args
 
 
-    def check_target_function(self):
+    def __check_target_function(self):
 
         try:
             exec(self.envir_statements)
         except:
-            print("The environment statements given can't be executed.")
+            print("[ERROR] The environment statements given can't be executed.")
             raise
 
         if self.target_fun in locals() and isinstance(locals()[self.target_fun], FunctionType):
@@ -169,13 +194,13 @@ class MasterNode():
         clear_queue(self.shared_error_q)
 
         if self.target_fun == None:
-            print("Target function is not registered yet.")
-        elif not self.check_target_function():
-            print("The target function registered (`{}`) can't be built with the given environment statements.".format(self.target_fun))
+            print("[ERROR] Target function is not registered yet.")
+        elif not self.__check_target_function():
+            print("[ERROR] The target function registered (`{}`) can't be built with the given environment statements.".format(self.target_fun))
         elif len(self.args_to_share_to_workers) != len(set(self.args_to_share_to_workers)):
-            print("The arguments to share with worker nodes are not unique. Please check the data you passed to MasterNode.load_args().")
+            print("[ERROR]The arguments to share with worker nodes are not unique. Please check the data you passed to MasterNode.load_args().")
         elif len(self.list_workers()) == 0:
-            print("No worker node is available. Can't proceed to execute")
+            print("[ERROR] No worker node is available. Can't proceed to execute")
         else:
             print("[{}] Assigning jobs to worker nodes.".format(str(datetime.datetime.now())))
 
@@ -193,7 +218,7 @@ class MasterNode():
             resultdict = {}
             while numresults < len(self.args_to_share_to_workers):
                 if not self.shared_error_q.empty():
-                    print("Running error occured in remote worker node:")
+                    print("[ERROR] Running error occured in remote worker node:")
                     print(self.shared_error_q.get())
                     
                     clear_queue(self.shared_job_q)
@@ -226,4 +251,6 @@ class MasterNode():
 
 
     def shutdown(self):
+        self.stop_local_worker()
         self.manager.shutdown()
+        print("[INFO] The master node is stopped.")

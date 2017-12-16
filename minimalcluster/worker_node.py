@@ -55,7 +55,7 @@ def mp_apply(envir, fun, shared_job_q, shared_result_q, shared_error_q, nprocs):
 
 class WorkerNode():
 
-    def __init__(self, IP, PORT, AUTHKEY, nprocs):
+    def __init__(self, IP, PORT, AUTHKEY, nprocs, quiet = False):
         '''
         Method to initiate a master node object.
 
@@ -84,6 +84,7 @@ class WorkerNode():
             self.nprocs = nprocs
         self.connected = False
         self.worker_hostname = getfqdn()
+        self.quiet = quiet
 
     def connect(self):
         """
@@ -102,9 +103,11 @@ class WorkerNode():
         self.manager = ServerQueueManager(address=(self.IP, self.PORT), authkey=self.AUTHKEY)
         
         try:
-            print('[{}] Building connection to {}:{}'.format(str(datetime.datetime.now()), self.IP, self.PORT))
+            if not self.quiet:
+                print('[{}] Building connection to {}:{}'.format(str(datetime.datetime.now()), self.IP, self.PORT))
             self.manager.connect()
-            print('[{}] Client connected to {}:{}'.format(str(datetime.datetime.now()), self.IP, self.PORT))
+            if not self.quiet:
+                print('[{}] Client connected to {}:{}'.format(str(datetime.datetime.now()), self.IP, self.PORT))
             self.connected = True
             self.job_q = self.manager.get_job_q()
             self.result_q = self.manager.get_result_q()
@@ -113,7 +116,7 @@ class WorkerNode():
             self.target_func = self.manager.target_function()
             self.queue_of_worker_list = self.manager.queue_of_worker_list()
         except:
-            print("No connection could be made. Please check the network or your configuration.")
+            print("[ERROR] No connection could be made. Please check the network or your configuration.")
 
     def join_cluster(self):
         """
@@ -123,8 +126,8 @@ class WorkerNode():
         self.connect()
 
         if self.connected:
-            
-            print('[{}] Listening to Master node {}:{}'.format(str(datetime.datetime.now()), self.IP, self.PORT))
+            if not self.quiet:
+                print('[{}] Listening to Master node {}:{}'.format(str(datetime.datetime.now()), self.IP, self.PORT))
 
             while True:
 
@@ -149,16 +152,16 @@ class WorkerNode():
                         envir = self.envir_to_use.get(timeout = 3)
                         self.envir_to_use.put(envir)
                     except:
-                        sys.exit("Failed to get the task function from Master node.")
+                        sys.exit("[ERROR] Failed to get the environment statement from Master node.")
 
                     # load task function
                     try:
                         target_func = self.target_func.get(timeout = 3)
                         self.target_func.put(target_func)
                     except:
-                        sys.exit("Failed to get the task function from Master node.")
+                        sys.exit("[ERROR] Failed to get the task function from Master node.")
                     
                     mp_apply(envir, target_func, self.job_q, self.result_q, self.error_q, self.nprocs)
                     print("[{}] Tasked finished.".format(str(datetime.datetime.now())))
 
-                time.sleep(0.5) # avoid too frequent communication which is unnecessary
+                time.sleep(0.1) # avoid too frequent communication which is unnecessary
