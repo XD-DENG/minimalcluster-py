@@ -10,7 +10,7 @@ with open(path.join(here, 'README.rst')) as f:
 
 setup(
     name="minimalcluster",
-    version="0.1.0.dev7.1",
+    version="0.1.0.dev8",
     description='A minimal cluster computing framework',
     long_description=long_description,
     url='https://github.com/XD-DENG/minimalcluster-py',

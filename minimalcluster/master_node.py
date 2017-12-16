@@ -74,7 +74,8 @@ class MasterNode():
         self.AUTHKEY = AUTHKEY.encode() if AUTHKEY != None else ''.join(random.choice(string.ascii_uppercase) for _ in range(6)).encode()
         self.chunksize = chunksize
         self.functions_to_share_to_workers = []
-        self.server_status = 'Not started'
+        self.server_status = 'off'
+        self.as_worker = False
         self.target_fun = None
 
         
@@ -110,7 +111,7 @@ class MasterNode():
 
         self.manager = JobQueueManager(address=(self.HOST, self.PORT), authkey=self.AUTHKEY)
         self.manager.start()
-        self.server_status = 'Started'
+        self.server_status = 'on'
         print('[{}] Master Node started at port {} with authkey `{}`.'.format(str(datetime.datetime.now()), self.PORT, self.AUTHKEY.decode()))
 
         self.shared_job_q = self.manager.get_job_q()
@@ -126,6 +127,7 @@ class MasterNode():
             # waiting for the master node joining the cluster as a worker
             while len(self.list_workers()) == 0:
                 pass
+            self.as_worker = True
             print("[INFO] Current node has joined the cluster as a Worker Node (using {} processors; Process ID: {}).".format(cpu_count(), self.process_as_worker.pid))
 
     def stop_local_worker(self):
@@ -134,6 +136,7 @@ class MasterNode():
         This method serves this purpose
         '''
         self.process_as_worker.terminate()
+        self.as_worker = False
         print("[INFO] The master node has stopped working as a worker node.")
 
     def list_workers(self):
@@ -251,6 +254,12 @@ class MasterNode():
 
 
     def shutdown(self):
-        self.stop_local_worker()
-        self.manager.shutdown()
-        print("[INFO] The master node is stopped.")
+        if self.as_worker:
+            self.stop_local_worker()
+
+        if self.server_status == 'on':
+            self.manager.shutdown()
+            self.server_status = "off"
+            print("[INFO] The master node is stopped.")
+        else:
+            print("[WARNING] The master node is not started yet or already shutted off.")
