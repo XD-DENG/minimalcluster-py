@@ -86,7 +86,7 @@ class MasterNode():
         if self.as_worker:
             print("[WARNING] This node has already joined the cluster as a worker node.")
         else:
-            self.process_as_worker = Process(target = start_worker_in_background, args=(self.HOST, self.PORT, self.AUTHKEY, cpu_count(), True, ))
+            self.process_as_worker = Process(target = start_worker_in_background, args=(self.HOST, self.PORT, self.AUTHKEY.decode(), cpu_count(), True, ))
             self.process_as_worker.start()
             # waiting for the master node joining the cluster as a worker
             while len(self.list_workers()) == 0:
