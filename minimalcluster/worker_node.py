@@ -61,18 +61,18 @@ class WorkerNode():
 
         IP: the hostname or IP address of the Master Node
         PORT: the port to use (decided by Master NOde)
-        AUTHKEY: The process's authentication key (a byte string).
-                  It can't be None.
+        AUTHKEY: The process's authentication key (a string or byte string).
+                  It can't be None for Worker Nodes.
         nprocs: Integer. The number of processors on the Worker Node to be available to the Master Node.
                 It should be less or equal to the number of processors on the Worker Node. If higher than that, the # of available processors will be used instead.
         '''
 
-        assert AUTHKEY != None, "AUTHKEY can't be None"
+        assert type(AUTHKEY) in [str, bytes], "AUTHKEY must be either string or byte string."
         assert type(nprocs) == int, "'nprocs' must be an integer."
 
         self.IP = IP
         self.PORT = PORT
-        self.AUTHKEY = AUTHKEY.encode()
+        self.AUTHKEY = AUTHKEY.encode() if type(AUTHKEY) == str else AUTHKEY
         N_local_cores = multiprocessing.cpu_count()
         if nprocs > N_local_cores:
             print("[WARNING] nprocs specified is more than the # of cores of this node. Using the # of cores ({}) instead.".format(N_local_cores))

@@ -64,14 +64,21 @@ class MasterNode():
 
         HOST: the hostname or IP address to use
         PORT: the port to use
-        AUTHKEY: The process's authentication key (a byte string).
+        AUTHKEY: The process's authentication key (a string or byte string).
                  If None is given, a random string will be given
         chunksize: The numbers are split into chunks. Each chunk is pushed into the job queue.
                    Here the size of each chunk if specified.
         '''
+
+        # Check & process AUTHKEY
+        # to [1] ensure compatilibity between Py 2 and 3; [2] to allow both string and byte string for AUTHKEY input.
+        assert type(AUTHKEY) in [str, bytes] or AUTHKEY is None, "AUTKEY must be either one among string, byte string, and None (a random AUTHKEY will be generated if None is given)."
+        if AUTHKEY != None and type(AUTHKEY) == str:
+            AUTHKEY = AUTHKEY.encode()
+
         self.HOST = HOST
         self.PORT = PORT
-        self.AUTHKEY = AUTHKEY.encode() if AUTHKEY != None else ''.join(random.choice(string.ascii_uppercase) for _ in range(6)).encode()
+        self.AUTHKEY = AUTHKEY if AUTHKEY != None else ''.join(random.choice(string.ascii_uppercase) for _ in range(6)).encode()
         self.chunksize = chunksize
         self.functions_to_share_to_workers = []
         self.server_status = 'off'
@@ -86,7 +93,7 @@ class MasterNode():
         if self.as_worker:
             print("[WARNING] This node has already joined the cluster as a worker node.")
         else:
-            self.process_as_worker = Process(target = start_worker_in_background, args=(self.HOST, self.PORT, self.AUTHKEY.decode(), cpu_count(), True, ))
+            self.process_as_worker = Process(target = start_worker_in_background, args=(self.HOST, self.PORT, self.AUTHKEY, cpu_count(), True, ))
             self.process_as_worker.start()
             # waiting for the master node joining the cluster as a worker
             while len(self.list_workers()) == 0:
@@ -127,7 +134,7 @@ class MasterNode():
         self.manager = JobQueueManager(address=(self.HOST, self.PORT), authkey=self.AUTHKEY)
         self.manager.start()
         self.server_status = 'on'
-        print('[{}] Master Node started at port {} with authkey `{}`.'.format(str(datetime.datetime.now()), self.PORT, self.AUTHKEY.decode()))
+        print('[{}] Master Node started at {}:{} with authkey `{}`.'.format(str(datetime.datetime.now()), self.HOST, self.PORT, self.AUTHKEY.decode()))
 
         self.shared_job_q = self.manager.get_job_q()
         self.shared_result_q = self.manager.get_result_q()
