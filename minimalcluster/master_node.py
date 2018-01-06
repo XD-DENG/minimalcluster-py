@@ -1,13 +1,9 @@
-from multiprocessing.managers import SyncManager
+from multiprocessing.managers import SyncManager, DictProxy
 from multiprocessing import Process, cpu_count
-import time
-import inspect
-import datetime
+import os, signal, sys, time, datetime, random, string, inspect
 from functools import partial
 from types import FunctionType
-import sys
-import random
-import string
+from socket import getfqdn
 if sys.version_info.major == 3:
     from queue import Queue as _Queue
 else:
@@ -84,6 +80,8 @@ class MasterNode():
         self.server_status = 'off'
         self.as_worker = False
         self.target_fun = None
+        self.master_fqdn = getfqdn()
+        self.pid_as_worker_on_master = None
 
 
     def join_as_worker(self):
@@ -95,9 +93,12 @@ class MasterNode():
         else:
             self.process_as_worker = Process(target = start_worker_in_background, args=(self.HOST, self.PORT, self.AUTHKEY, cpu_count(), True, ))
             self.process_as_worker.start()
+            
             # waiting for the master node joining the cluster as a worker
-            while len(self.list_workers()) == 0:
+            while self.master_fqdn not in [w[0] for w in self.list_workers()]:
                 pass
+
+            self.pid_as_worker_on_master = [w for w in self.list_workers() if w[0] == self.master_fqdn][0][2]
             self.as_worker = True
             print("[INFO] Current node has joined the cluster as a Worker Node (using {} processors; Process ID: {}).".format(cpu_count(), self.process_as_worker.pid))
         
@@ -117,6 +118,7 @@ class MasterNode():
         self.get_envir = Queue()
         self.target_function = Queue()
         self.raw_queue_of_worker_list = Queue()
+        self.raw_dict_of_job_history = dict() # a queue to store the history of job assignment
         
         # Return synchronized proxies for the actual Queue objects.
         # Note that for "callable=", we don't use `lambda` which is commonly used in multiprocessing examples.
@@ -130,6 +132,7 @@ class MasterNode():
         JobQueueManager.register('get_envir', callable = partial(get_fun, self.get_envir))
         JobQueueManager.register('target_function', callable = partial(get_fun, self.target_function))
         JobQueueManager.register('queue_of_worker_list', callable = partial(get_fun, self.raw_queue_of_worker_list))
+        JobQueueManager.register('dict_of_job_history', callable = partial(get_fun, self.raw_dict_of_job_history), proxytype=DictProxy)
 
         self.manager = JobQueueManager(address=(self.HOST, self.PORT), authkey=self.AUTHKEY)
         self.manager.start()
@@ -142,6 +145,7 @@ class MasterNode():
         self.share_envir = self.manager.get_envir()
         self.share_target_fun = self.manager.target_function()
         self.queue_of_worker_list = self.manager.queue_of_worker_list()
+        self.dict_of_job_history = self.manager.dict_of_job_history()
         
         if if_join_as_worker:
             self.join_as_worker()
@@ -149,31 +153,43 @@ class MasterNode():
     def stop_as_worker(self):
         '''
         Given the master node can also join the cluster as a worker, we also need to have a method to stop it as a worker node (which may be necessary in some cases).
-        This method serves this purpose
+        This method serves this purpose.
+
+        Given the worker node will start a separate process for heartbeat purpose.
+        We need to shutdown the heartbeat process separately.
         '''
-        self.process_as_worker.terminate()
-        self.as_worker = False
-        print("[INFO] The master node has stopped working as a worker node.")
+        try:
+            os.kill(self.pid_as_worker_on_master, signal.SIGTERM)
+            self.pid_as_worker_on_master = None
+            self.process_as_worker.terminate()
+        except AttributeError:
+            print("[WARNING] The master node has not started as a worker yet.")
+        finally:
+            self.as_worker = False
+            print("[INFO] The master node has stopped working as a worker node.")
 
     def list_workers(self):
         '''
         Return a list of connected worker nodes.
-        Each element of this list is (hostname of worker node, number of available cores)
+        Each element of this list is:
+            (hostname of worker node,
+             # of available cores,
+             pid on the worker node,
+             if the worker node is working on any work load currently (1:Yes, 0:No))
         '''
 
         # STEP-1: an element will be PUT into the queue "self.queue_of_worker_list"
         # STEP-2: worker nodes will watch on this queue and attach their information into this queue too
         # STEP-3: this function will collect the elements from the queue and return the list of workers node who responded
 
-        self.queue_of_worker_list.put(".")
+        self.queue_of_worker_list.put(".") # trigger worker nodes to contact master node to show their "heartbeat"
+        time.sleep(0.2) # Allow some time for collecting "heartbeat"
         
-        time.sleep(1)
         worker_list = []
-        
         while not self.queue_of_worker_list.empty():
             worker_list.append(self.queue_of_worker_list.get())
 
-        return list(set(worker_list)-set("."))
+        return list(set([w for w in worker_list if w != "."]))
         
 
     def load_envir(self, source, from_file = True):
@@ -230,12 +246,39 @@ class MasterNode():
 
             # The numbers are split into chunks. Each chunk is pushed into the job queue
             for i in range(0, len(self.args_to_share_to_workers), self.chunksize):
-                self.shared_job_q.put(self.args_to_share_to_workers[i:i + self.chunksize])
+                self.shared_job_q.put((i, self.args_to_share_to_workers[i:i + self.chunksize]))
             
             # Wait until all results are ready in shared_result_q
             numresults = 0
             resultdict = {}
+            list_job_id_done = []
             while numresults < len(self.args_to_share_to_workers):
+
+                if len(self.list_workers()) == 0:
+                    print("[{}][Warning] No valid worker node at this moment. You can wait for workers to join, or CTRL+C to cancle.".format(str(datetime.datetime.now())))
+                    continue
+
+                if self.shared_job_q.empty() and sum([w[3] for w in self.list_workers()]) == 0:
+                    '''
+                    After all jobs are assigned and all worker nodes have finished their works,
+                    check if the nodes who have un-finished jobs are sitll alive.
+                    if not, re-collect these jobs and put them inot the job queue
+                    '''
+                    while not self.shared_result_q.empty():
+                        try:
+                            job_id_done, outdict = self.shared_result_q.get(False)
+                            resultdict.update(outdict)
+                            list_job_id_done.append(job_id_done)
+                            numresults += len(outdict)
+                        except:
+                            pass
+
+                    [self.dict_of_job_history.pop(k, None) for k in list_job_id_done]
+
+                    for job_id in [x for x,y in self.dict_of_job_history.items()]:
+                        print("Putting {} back to the job queue".format(job_id))
+                        self.shared_job_q.put((job_id, self.args_to_share_to_workers[i:i + self.chunksize]))
+
                 if not self.shared_error_q.empty():
                     print("[ERROR] Running error occured in remote worker node:")
                     print(self.shared_error_q.get())
@@ -245,12 +288,19 @@ class MasterNode():
                     clear_queue(self.share_envir)
                     clear_queue(self.share_target_fun)
                     clear_queue(self.shared_error_q)
+                    self.dict_of_job_history.clear()
 
                     return None
 
-                outdict = self.shared_result_q.get()
-                resultdict.update(outdict)
-                numresults += len(outdict)
+                # job_id_done is the unique id of the jobs that have been done and returned to the master node.
+                while not self.shared_result_q.empty():
+                    try:
+                        job_id_done, outdict = self.shared_result_q.get(False)
+                        resultdict.update(outdict)
+                        list_job_id_done.append(job_id_done)
+                        numresults += len(outdict)
+                    except:
+                        pass
 
 
             print("[{}] Aggregating on Master node...".format(str(datetime.datetime.now())))
@@ -261,10 +311,7 @@ class MasterNode():
             clear_queue(self.shared_result_q)
             clear_queue(self.share_envir)
             clear_queue(self.share_target_fun)
-
-            # Sleep a bit before shutting down the server - to give clients time to
-            # realize the job queue is empty and exit in an orderly way.
-            time.sleep(2)
+            self.dict_of_job_history.clear()
 
             return resultdict
 

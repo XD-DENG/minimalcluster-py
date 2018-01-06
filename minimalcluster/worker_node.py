@@ -1,9 +1,6 @@
 from multiprocessing.managers import SyncManager
 import multiprocessing
-import sys
-import getopt
-import time
-import datetime
+import sys, os, time, datetime
 from socket import getfqdn
 if sys.version_info.major == 3:
     import queue as Queue
@@ -12,7 +9,7 @@ else:
 
 __all__ = ['WorkerNode']
 
-def single_worker(envir, fun, job_q, result_q, error_q):
+def single_worker(envir, fun, job_q, result_q, error_q, history_d, hostname):
     """ A worker function to be launched in a separate process. Takes jobs from
         job_q - each job a list of numbers to factorize. When the job is done,
         the result (dict mapping number -> list of factors) is placed into
@@ -25,9 +22,11 @@ def single_worker(envir, fun, job_q, result_q, error_q):
     globals().update(locals())
     while True:
         try:
-            job = job_q.get_nowait()
-            outdict = {n: globals()[fun](n) for n in job}
-            result_q.put(outdict)
+            job_id, job_detail = job_q.get_nowait()
+            # history_q.put({job_id: hostname})
+            history_d[job_id] = hostname
+            outdict = {n: globals()[fun](n) for n in job_detail}
+            result_q.put((job_id, outdict))
         except Queue.Empty:
             return
         except:
@@ -35,7 +34,7 @@ def single_worker(envir, fun, job_q, result_q, error_q):
             error_q.put("; ".join([repr(e) for e in sys.exc_info()]))
             return
 
-def mp_apply(envir, fun, shared_job_q, shared_result_q, shared_error_q, nprocs):
+def mp_apply(envir, fun, shared_job_q, shared_result_q, shared_error_q, shared_history_d, hostname, nprocs):
     """ Split the work with jobs in shared_job_q and results in
         shared_result_q into several processes. Launch each process with
         single_worker as the worker function, and wait until all are
@@ -46,7 +45,7 @@ def mp_apply(envir, fun, shared_job_q, shared_result_q, shared_error_q, nprocs):
     for i in range(nprocs):
         p = multiprocessing.Process(
                 target=single_worker,
-                args=(envir, fun, shared_job_q, shared_result_q, shared_error_q))
+                args=(envir, fun, shared_job_q, shared_result_q, shared_error_q, shared_history_d, hostname))
         procs.append(p)
         p.start()
 
@@ -85,6 +84,7 @@ class WorkerNode():
         self.connected = False
         self.worker_hostname = getfqdn()
         self.quiet = quiet
+        self.working_status = multiprocessing.Value("i", 0) # if the node is working on any work loads
 
     def connect(self):
         """
@@ -99,6 +99,7 @@ class WorkerNode():
         ServerQueueManager.register('get_envir')
         ServerQueueManager.register('target_function')
         ServerQueueManager.register('queue_of_worker_list')
+        ServerQueueManager.register('dict_of_job_history')
 
         self.manager = ServerQueueManager(address=(self.IP, self.PORT), authkey=self.AUTHKEY)
         
@@ -115,8 +116,19 @@ class WorkerNode():
             self.envir_to_use = self.manager.get_envir()
             self.target_func = self.manager.target_function()
             self.queue_of_worker_list = self.manager.queue_of_worker_list()
+            self.dict_of_job_history = self.manager.dict_of_job_history()
         except:
             print("[ERROR] No connection could be made. Please check the network or your configuration.")
+
+    def heartbeat(self, status):
+        '''
+        heartbeat will keep an eye on whether the master node is checking the list of valid nodes
+        if it detects the signal, it will share the information of current node with the master node.
+        '''
+        while True:
+            if not self.queue_of_worker_list.empty():
+                self.queue_of_worker_list.put((self.worker_hostname, self.nprocs, os.getpid(), status.value))
+            time.sleep(0.01)
 
     def join_cluster(self):
         """
@@ -126,24 +138,24 @@ class WorkerNode():
         self.connect()
 
         if self.connected:
+
+            # start the `heartbeat` process so that the master node can always know if this node is still connected.
+            self.heartbeat_process = multiprocessing.Process(target = self.heartbeat, args = (self.working_status,))
+            self.heartbeat_process.start()
+
             if not self.quiet:
                 print('[{}] Listening to Master node {}:{}'.format(str(datetime.datetime.now()), self.IP, self.PORT))
 
             while True:
 
-                # Check if the connection to master node is still working
                 try:
                     if_job_q_empty = self.job_q.empty()
-
-                    # to "notify" the master node this worker node is connected
-                    if not self.queue_of_worker_list.empty():
-                        self.queue_of_worker_list.put((self.worker_hostname, self.nprocs))
-
                 except EOFError:
                     print("[{}] Lost connection with Master node.".format(str(datetime.datetime.now())))
                     sys.exit(1)
 
                 if not if_job_q_empty and self.error_q.empty():
+
                     print("[{}] Started working on some tasks.".format(str(datetime.datetime.now())))
 
 
@@ -161,7 +173,9 @@ class WorkerNode():
                     except:
                         sys.exit("[ERROR] Failed to get the task function from Master node.")
                     
-                    mp_apply(envir, target_func, self.job_q, self.result_q, self.error_q, self.nprocs)
-                    print("[{}] Tasked finished.".format(str(datetime.datetime.now())))
+                    self.working_status.value = 1
+                    mp_apply(envir, target_func, self.job_q, self.result_q, self.error_q, self.dict_of_job_history, self.worker_hostname, self.nprocs)
+                    print("[{}] Tasks finished.".format(str(datetime.datetime.now())))
+                    self.working_status.value = 0
 
                 time.sleep(0.1) # avoid too frequent communication which is unnecessary
