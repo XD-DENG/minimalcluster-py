@@ -174,7 +174,7 @@ class MasterNode():
         Each element of this list is:
             (hostname of worker node,
              # of available cores,
-             pid on the worker node,
+             pid of heartbeat process on the worker node,
              if the worker node is working on any work load currently (1:Yes, 0:No))
         '''
 
@@ -183,7 +183,7 @@ class MasterNode():
         # STEP-3: this function will collect the elements from the queue and return the list of workers node who responded
 
         self.queue_of_worker_list.put(".") # trigger worker nodes to contact master node to show their "heartbeat"
-        time.sleep(0.2) # Allow some time for collecting "heartbeat"
+        time.sleep(0.3) # Allow some time for collecting "heartbeat"
         
         worker_list = []
         while not self.queue_of_worker_list.empty():
@@ -246,7 +246,7 @@ class MasterNode():
 
             # The numbers are split into chunks. Each chunk is pushed into the job queue
             for i in range(0, len(self.args_to_share_to_workers), self.chunksize):
-                self.shared_job_q.put((i, self.args_to_share_to_workers[i:i + self.chunksize]))
+                self.shared_job_q.put((i, self.args_to_share_to_workers[i:(i + self.chunksize)]))
             
             # Wait until all results are ready in shared_result_q
             numresults = 0
@@ -277,7 +277,7 @@ class MasterNode():
 
                     for job_id in [x for x,y in self.dict_of_job_history.items()]:
                         print("Putting {} back to the job queue".format(job_id))
-                        self.shared_job_q.put((job_id, self.args_to_share_to_workers[i:i + self.chunksize]))
+                        self.shared_job_q.put((job_id, self.args_to_share_to_workers[job_id:(job_id + self.chunksize)]))
 
                 if not self.shared_error_q.empty():
                     print("[ERROR] Running error occured in remote worker node:")

@@ -186,11 +186,3 @@ You can shutdown the cluster by running
 master.shutdown()
 ```
 
-
-
-
-## Something Not Considered
-
-- **Fault tolerance**: if the network fails or any node fails during job execution, how does the system handle it? E.g., how should we handle the loads which were assigned to the failed node?
-
-- **Load Assignment Based on Node Property**: e.g., work loads should be assigned to the nodes with better performance. Actually this can be partically solved by using proper chunk size. Say we have a bad-performing node in the cluster. By adopting smaller chunk size, less work loads will go to this bad-performing node. But the communication overhead will be heavier as more communications will be expected given smaller chunk size.

@@ -31,7 +31,7 @@ def single_worker(envir, fun, job_q, result_q, error_q, history_d, hostname):
             return
         except:
             # send the Unexpected error to master node
-            error_q.put("; ".join([repr(e) for e in sys.exc_info()]))
+            error_q.put("Worker Node '{}': ".format(hostname) + "; ".join([repr(e) for e in sys.exc_info()]))
             return
 
 def mp_apply(envir, fun, shared_job_q, shared_result_q, shared_error_q, shared_history_d, hostname, nprocs):
@@ -51,6 +51,18 @@ def mp_apply(envir, fun, shared_job_q, shared_result_q, shared_error_q, shared_h
 
     for p in procs:
         p.join()
+
+# this function is put at top level rather than as a method of WorkerNode class
+# this is to bypass the error "AttributeError: type object 'ServerQueueManager' has no attribute 'from_address'""
+def heartbeat(queue_of_worker_list, worker_hostname, nprocs, status):
+    '''
+    heartbeat will keep an eye on whether the master node is checking the list of valid nodes
+    if it detects the signal, it will share the information of current node with the master node.
+    '''
+    while True:
+        if not queue_of_worker_list.empty():
+            queue_of_worker_list.put((worker_hostname, nprocs, os.getpid(), status.value))
+        time.sleep(0.01)
 
 class WorkerNode():
 
@@ -120,16 +132,6 @@ class WorkerNode():
         except:
             print("[ERROR] No connection could be made. Please check the network or your configuration.")
 
-    def heartbeat(self, status):
-        '''
-        heartbeat will keep an eye on whether the master node is checking the list of valid nodes
-        if it detects the signal, it will share the information of current node with the master node.
-        '''
-        while True:
-            if not self.queue_of_worker_list.empty():
-                self.queue_of_worker_list.put((self.worker_hostname, self.nprocs, os.getpid(), status.value))
-            time.sleep(0.01)
-
     def join_cluster(self):
         """
         This method will connect the worker node with the master node, and start to listen to the master node for any job assignment.
@@ -140,7 +142,7 @@ class WorkerNode():
         if self.connected:
 
             # start the `heartbeat` process so that the master node can always know if this node is still connected.
-            self.heartbeat_process = multiprocessing.Process(target = self.heartbeat, args = (self.working_status,))
+            self.heartbeat_process = multiprocessing.Process(target = heartbeat, args = (self.queue_of_worker_list, self.worker_hostname, self.nprocs, self.working_status,))
             self.heartbeat_process.start()
 
             if not self.quiet:
