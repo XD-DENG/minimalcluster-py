@@ -76,7 +76,6 @@ class MasterNode():
         self.PORT = PORT
         self.AUTHKEY = AUTHKEY if AUTHKEY != None else ''.join(random.choice(string.ascii_uppercase) for _ in range(6)).encode()
         self.chunksize = chunksize
-        self.functions_to_share_to_workers = []
         self.server_status = 'off'
         self.as_worker = False
         self.target_fun = None
