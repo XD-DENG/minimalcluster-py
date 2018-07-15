@@ -11,5 +11,15 @@ pipeline {
         sh 'echo \'Building the project\''
       }
     }
+    stage('Testing') {
+      steps {
+        sh 'Testing the built project'
+      }
+    }
+    stage('Final Message') {
+      steps {
+        echo 'Project tested'
+      }
+    }
   }
 }
